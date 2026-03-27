@@ -231,7 +231,7 @@ void cutlass_gemm_caller_sm100_fp8(paddle::Tensor& out, paddle::Tensor const& a,
           std::forward<EpilogueArgs>(epilogue_params)...),
       c_ptr, c_stride, c_ptr, c_stride};
 
-  c3x::cutlass_gemm_caller<GemmKernel>(a.place(), prob_shape, mainloop_args,
+  c3x::cutlass_gemm_caller<GemmKernel>(a, prob_shape, mainloop_args,
                                        epilogue_args);
 }
 

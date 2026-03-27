@@ -108,7 +108,7 @@ def test_fp8_with_bias():
     print("Test: FP8 per-tensor scaled matmul with bias")
     print("=" * 60)
 
-    M, N, K = 128, 256, 512
+    M, N, K = 1280, 256, 4096
     np.random.seed(42)
     a_fp32 = np.random.randn(M, K).astype(np.float32) * 0.1
     b_fp32 = np.random.randn(N, K).astype(np.float32) * 0.1
@@ -142,6 +142,56 @@ def test_fp8_with_bias():
     return passed
 
 
+def test_fp8_per_tensor_a_per_channel_b():
+    """Test FP8 scaled matmul with per-tensor A scale and per-channel B scale."""
+    print("\n" + "=" * 60)
+    print("Test: FP8 per-tensor A / per-channel B scaled matmul")
+    print("=" * 60)
+
+    M, N, K = 128, 256, 512
+    np.random.seed(99)
+    a_fp32 = np.random.randn(M, K).astype(np.float32) * 0.1
+    b_fp32 = np.random.randn(N, K).astype(np.float32) * 0.1
+
+    # Reference: A @ B^T
+    ref = a_fp32 @ b_fp32.T
+
+    # A: per-tensor quantization (single scale)
+    sa = np.abs(a_fp32).max() / 448.0
+    a_fp8 = quantize_to_fp8(a_fp32, sa)
+
+    # B: per-channel quantization (one scale per output channel, i.e. per row of B)
+    sb_per_channel = np.abs(b_fp32).max(axis=1).astype(np.float32) / 448.0
+    # Quantize each row of B with its own scale
+    b_scaled = b_fp32 / sb_per_channel[:, np.newaxis]
+    b_scaled = np.clip(b_scaled, -448.0, 448.0)
+    b_fp8 = paddle.to_tensor(b_scaled, dtype=paddle.float32).cast(paddle.float8_e4m3fn).cuda()
+
+    # a_scales: scalar [1], b_scales: per-channel [N]
+    a_scales = paddle.to_tensor([sa], dtype=paddle.float32).cuda()
+    b_scales = paddle.to_tensor(sb_per_channel, dtype=paddle.float32).cuda()
+
+    result = call_scaled_mm(a_fp8, b_fp8, a_scales, b_scales)
+
+    abs_diff = np.abs(result - ref)
+    mask = np.abs(ref) > 0.01
+    rel_err_filtered = np.abs(result[mask] - ref[mask]) / np.abs(ref[mask])
+    corr = np.corrcoef(ref.flatten(), result.flatten())[0, 1]
+
+    print(f"  Shapes: a={a_fp8.shape}, b={b_fp8.shape}, out={result.shape}")
+    print(f"  a_scales shape: {a_scales.shape} (per-tensor)")
+    print(f"  b_scales shape: {b_scales.shape} (per-channel)")
+    print(f"  Ref range: [{ref.min():.4f}, {ref.max():.4f}]")
+    print(f"  Result range: [{result.min():.4f}, {result.max():.4f}]")
+    print(f"  Correlation: {corr:.6f}")
+    print(f"  Mean abs error: {abs_diff.mean():.6f}")
+    print(f"  Mean rel error (|ref|>0.01): {rel_err_filtered.mean():.6f}")
+
+    passed = corr > 0.998 and rel_err_filtered.mean() < 0.15
+    print(f"  {'PASSED' if passed else 'FAILED'}")
+    return passed
+
+
 if __name__ == "__main__":
     paddle.set_device("gpu:0")
 
@@ -149,6 +199,7 @@ if __name__ == "__main__":
     results.append(("FP8 per-tensor", test_fp8_per_tensor()))
     results.append(("FP8 large", test_fp8_large()))
     results.append(("FP8 with bias", test_fp8_with_bias()))
+    results.append(("FP8 per-tensor A / per-channel B", test_fp8_per_tensor_a_per_channel_b()))
 
     print("\n" + "=" * 60)
     print("Summary:")

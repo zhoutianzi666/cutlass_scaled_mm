@@ -20,7 +20,30 @@ print(f"Detected SM version: sm{sm_version}")
 # Paths
 project_dir = os.path.dirname(os.path.abspath(__file__))
 csrc_dir = os.path.join(project_dir, "csrc")
-cutlass_dir = "/root/paddlejob/workspace/env_run/output/zkk/NVFP4/DeepGEMM/third-party/cutlass"
+build_dir = os.path.join(project_dir, "build")
+cutlass_dir = os.path.join(build_dir, "cutlass")
+CUTLASS_REPO = "https://github.com/NVIDIA/cutlass.git"
+CUTLASS_COMMIT = "f3fde58372d33e9a5650ba7b80fc48b3b49d40c8"
+
+# Auto-clone cutlass if not present or commit mismatch
+def ensure_cutlass():
+    os.makedirs(build_dir, exist_ok=True)
+    if not os.path.exists(os.path.join(cutlass_dir, ".git")):
+        print(f"Cloning CUTLASS to {cutlass_dir} ...")
+        subprocess.check_call(
+            ["git", "clone", CUTLASS_REPO, cutlass_dir],
+        )
+    # Checkout the pinned commit
+    current_commit = subprocess.check_output(
+        ["git", "-C", cutlass_dir, "rev-parse", "HEAD"],
+    ).decode().strip()
+    if current_commit != CUTLASS_COMMIT:
+        print(f"Checking out CUTLASS commit {CUTLASS_COMMIT} ...")
+        subprocess.check_call(["git", "-C", cutlass_dir, "fetch", "--all"])
+        subprocess.check_call(["git", "-C", cutlass_dir, "checkout", CUTLASS_COMMIT])
+
+ensure_cutlass()
+
 cutlass_include = os.path.join(cutlass_dir, "include")
 cutlass_util_include = os.path.join(cutlass_dir, "tools", "util", "include")
 
@@ -63,7 +86,7 @@ else:
     sources.append(os.path.join(csrc_dir, "scaled_mm_c2x.cu"))
 
 # SM90 kernels
-if sm_version >= 90 or True:  # Always compile SM90 kernels
+if sm_version == 90:  # Always compile SM90 kernels
     define_macros.append("ENABLE_SCALED_MM_SM90=1")
     sources.extend([
         os.path.join(csrc_dir, "scaled_mm_c3x_sm90.cu"),
@@ -74,7 +97,7 @@ if sm_version >= 90 or True:  # Always compile SM90 kernels
     ])
 
 # SM100 kernels
-if sm_version >= 100 or True:  # Always compile SM100 kernels
+if sm_version == 100:  # Always compile SM100 kernels
     define_macros.append("ENABLE_SCALED_MM_SM100=1")
     sources.extend([
         os.path.join(csrc_dir, "scaled_mm_c3x_sm100.cu"),
@@ -83,7 +106,7 @@ if sm_version >= 100 or True:  # Always compile SM100 kernels
     ])
 
 # SM120 kernels
-if sm_version >= 120 or True:  # Always compile SM120 kernels
+if sm_version >= 120:  # Always compile SM120 kernels
     define_macros.append("ENABLE_SCALED_MM_SM120=1")
     sources.extend([
         os.path.join(csrc_dir, "scaled_mm_c3x_sm120.cu"),
@@ -96,10 +119,10 @@ if sm_version >= 120 or True:  # Always compile SM120 kernels
 arch_flags = []
 
 # Always compile for SM75 and SM80 (c2x path) with virtual arch
-arch_flags.extend(["-gencode", "arch=compute_75,code=sm_75"])
-arch_flags.extend(["-gencode", "arch=compute_80,code=sm_80"])
-arch_flags.extend(["-gencode", "arch=compute_89,code=sm_89"])
-arch_flags.extend(["-gencode", "arch=compute_90a,code=sm_90a"])
+# arch_flags.extend(["-gencode", "arch=compute_75,code=sm_75"])
+# arch_flags.extend(["-gencode", "arch=compute_80,code=sm_80"])
+# arch_flags.extend(["-gencode", "arch=compute_89,code=sm_89"])
+# arch_flags.extend(["-gencode", "arch=compute_90a,code=sm_90a"])
 arch_flags.extend(["-gencode", "arch=compute_100a,code=sm_100a"])
 arch_flags.extend(["-gencode", "arch=compute_120a,code=sm_120a"])
 

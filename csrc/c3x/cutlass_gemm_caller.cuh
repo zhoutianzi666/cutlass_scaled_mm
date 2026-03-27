@@ -33,7 +33,7 @@ static inline cute::Shape<int, int, int, int> get_problem_shape(
 
 template <typename GemmKernel>
 void cutlass_gemm_caller(
-    paddle::Place place, cute::Shape<int, int, int, int> prob_shape,
+    paddle::Tensor const& useless_tensor, cute::Shape<int, int, int, int> prob_shape,
     typename GemmKernel::MainloopArguments mainloop_args,
     typename GemmKernel::EpilogueArguments epilogue_args,
     typename GemmKernel::TileSchedulerArguments scheduler = {}) {
@@ -51,14 +51,10 @@ void cutlass_gemm_caller(
   CUTLASS_CHECK(gemm_op.can_implement(args));
 
   size_t workspace_size = gemm_op.get_workspace_size(args);
-  auto workspace = paddle::empty({(int64_t)workspace_size}, paddle::DataType::UINT8, place);
+  auto workspace = paddle::empty({(int64_t)workspace_size}, paddle::DataType::UINT8, useless_tensor.place());
 
   // Use default stream for the current device
-  cudaStream_t stream = nullptr;
-  // Get the current device stream
-  int device;
-  cudaGetDevice(&device);
-  cudaDeviceSynchronize();  // ensure previous work is done
+  cudaStream_t stream = useless_tensor.stream();
 
   auto* workspace_ptr = const_cast<void*>(workspace.data());
   cutlass::Status status = gemm_op.run(args, workspace_ptr, stream);
@@ -105,7 +101,7 @@ void cutlass_gemm_caller(paddle::Tensor& out, paddle::Tensor const& a,
           std::forward<EpilogueArgs>(epilogue_params)...),
       c_ptr, c_stride, c_ptr, d_stride};
 
-  cutlass_gemm_caller<GemmKernel>(a.place(), prob_shape, mainloop_args,
+  cutlass_gemm_caller<GemmKernel>(a, prob_shape, mainloop_args,
                                   epilogue_args);
 }
 
