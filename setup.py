@@ -56,13 +56,13 @@ sources = [
 nvcc_flags = [
     "-std=c++17",
     "-O3",
+    "-DNDEBUG",
     "--expt-relaxed-constexpr",
     "--expt-extended-lambda",
     "-Xcompiler", "-fPIC",
     "-U__CUDA_NO_HALF_OPERATORS__",
     "-U__CUDA_NO_HALF_CONVERSIONS__",
     "-U__CUDA_NO_HALF2_OPERATORS__",
-    "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
     "--threads=4",
 ]
 
@@ -122,7 +122,7 @@ arch_flags = []
 # arch_flags.extend(["-gencode", "arch=compute_75,code=sm_75"])
 # arch_flags.extend(["-gencode", "arch=compute_80,code=sm_80"])
 # arch_flags.extend(["-gencode", "arch=compute_89,code=sm_89"])
-# arch_flags.extend(["-gencode", "arch=compute_90a,code=sm_90a"])
+arch_flags.extend(["-gencode", "arch=compute_90a,code=sm_90a"])
 arch_flags.extend(["-gencode", "arch=compute_100a,code=sm_100a"])
 arch_flags.extend(["-gencode", "arch=compute_120a,code=sm_120a"])
 

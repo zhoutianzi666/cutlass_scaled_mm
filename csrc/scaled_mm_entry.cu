@@ -2,6 +2,8 @@
 #include "paddle/extension.h"
 #include "paddle_compat.h"
 #include "cutlass_extensions/common.hpp"
+#include "pybind11/pybind11.h"
+namespace py = pybind11;
 
 // Forward declarations for SM-specific kernels
 void cutlass_scaled_mm_sm75(paddle::Tensor& c, const paddle::Tensor& a,
@@ -201,9 +203,25 @@ std::vector<paddle::DataType> CutlassScaledMMInferDtype(
 }
 
 // Register the Paddle custom op
-PD_BUILD_OP(cutlass_scaled_mm)
-    .Inputs({"a", "b", "a_scales", "b_scales", paddle::Optional("bias")})
-    .Outputs({"out"})
-    .SetKernelFn(PD_KERNEL(CutlassScaledMM))
-    .SetInferShapeFn(PD_INFER_SHAPE(CutlassScaledMMInferShape))
-    .SetInferDtypeFn(PD_INFER_DTYPE(CutlassScaledMMInferDtype));
+// PD_BUILD_OP(cutlass_scaled_mm)
+//     .Inputs({"a", "b", "a_scales", "b_scales", paddle::Optional("bias")})
+//     .Outputs({"out"})
+//     .SetKernelFn(PD_KERNEL(CutlassScaledMM))
+//     .SetInferShapeFn(PD_INFER_SHAPE(CutlassScaledMMInferShape))
+//     .SetInferDtypeFn(PD_INFER_DTYPE(CutlassScaledMMInferDtype));
+
+// Pybind11 wrapper: bias is passed as py::object (None or paddle.Tensor)
+static paddle::Tensor cutlass_scaled_mm_pybind(
+    const paddle::Tensor& a,
+    const paddle::Tensor& b,
+    const paddle::Tensor& a_scales,
+    const paddle::Tensor& b_scales,
+    const paddle::optional<paddle::Tensor>& bias) {
+  return CutlassScaledMM(a, b, a_scales, b_scales, bias)[0];
+}
+
+PYBIND11_MODULE(cutlass_scaled_mm_paddle, m) {
+  m.def("cutlass_scaled_mm",
+        &cutlass_scaled_mm_pybind,
+        "cutlass_scaled_mm function");
+}
